@@ -151,7 +151,10 @@ def updateMsg():
         elif type == 3:
             print("button launch command")
             print(request.json)
-            userID = request.json.get("message").get("interaction_metadata").get("user").get("id")
+            if "user" in request.json:
+                userID = request.json.get("user").get("id")
+            else:
+                userID = request.json.get("member").get("user").get("id")
             if userID:
                 print(request.json)
                 print(userID)
