@@ -15,8 +15,9 @@ app.register_blueprint(tunnel_bp)
 cors = CORS(app,resources={r"/*": {"origins": "https://1445980061390999564.discordsays.com"}})
 
 DB_GUESS_NAME = "public.guesses"
+DB_WEBHOOK_NAME = "public.interaction"
 DB_GUESS_COLUMN = '("user_id","high","low","date","guess_cnt","avatar","username","game_completed")'
-DB_GUESS_FORMAT = "'{user_id}',{high},{low},{date},{guess_cnt},'{avatar}','{username}',{game_completed}"
+DB_WEBHOOK_COLUMN = '("user_id","interaction_id")'
 
 clientID = os.environ.get("CLIENT_ID", "")
 clientSec = os.environ.get("CLIENT_SEC", "")
@@ -24,7 +25,7 @@ clientPub = os.environ.get("CLIENT_PUB", "")
 API_ENDPOINT = os.environ.get("API_ENDPOINT", "")
 redirectURI = os.environ.get("REDIRECT_URI", "")
 DB_URL = os.environ.get("DB_URL", "")
-interaction_dict = {}
+
 logging.basicConfig(level=logging.DEBUG)
 with open('games.json','r') as file:
     gameData = json.load(file)
@@ -51,6 +52,39 @@ def httpLog(r,fMsg,sMsg):
         logging.error(r.text)
     else:
         logging.info(sMsg)
+def getInterID(userID):
+    conn = get_connection()
+    curr = conn.cursor()
+    curr.execute('''
+                SELECT * FROM {name}
+                WHERE user_id=%s;
+                '''.format(
+        name=DB_WEBHOOK_NAME), userID)
+    data = curr.fetchall()
+    results = []
+    for i in data:
+        results.append(i)
+    conn.close()
+    return results
+def updateInterID(userID,interactionID):
+    conn = get_connection()
+    curr = conn.cursor()
+    curr.execute('''
+            BEGIN;
+            UPDATE {name} SET
+            interaction_id = %(interactionID)s
+            WHERE user_id=%(userID)s;
+            INSERT INTO {name} 
+            {columns}
+            SELECT 
+            %(userID)s,%(interactionID)s
+            WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
+            user_id=%(userID)s;
+            COMMIT;
+                '''.format(
+        name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID})
+    conn.close()
+    return Response("posted",status=200)
 @app.route("/",methods=["OPTIONS","GET"])
 def main():
     if request.method=="GET":
@@ -108,7 +142,7 @@ def updateMsg():
                 userID = request.json.get("member").get("user").get("id")
             if userID:
                 token = request.json.get("token")
-                interaction_dict[userID] = token
+                updateInterID(userID,token)
                 return jsonify({
                     "type": 12
                 })
@@ -122,7 +156,7 @@ def updateMsg():
                 print(request.json)
                 print(userID)
                 token = request.json.get("token")
-                interaction_dict[userID] = token
+                updateInterID(userID,token)
                 return jsonify({
                     "type": 12
                 })
@@ -198,7 +232,7 @@ def guessDB():
                             }]
                       }]
         url = "https://discord.com/api/v10/webhooks/{appID}/{intToken}".format(appID=clientID,
-                                                                               intToken=interaction_dict[userID])
+                                                                               intToken=getInterID(userID))
         json = {
             "content": msg,
             "components":component
