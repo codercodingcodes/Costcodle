@@ -57,7 +57,7 @@ def getInterID(userID):
     curr = conn.cursor()
     curr.execute('''
                 SELECT * FROM {name}
-                WHERE user_id=%s;
+                WHERE user_id=%s
                 '''.format(
         name=DB_WEBHOOK_NAME), userID)
     data = curr.fetchall()
@@ -72,14 +72,14 @@ def updateInterID(userID,interactionID):
     curr.execute('''
             BEGIN;
             UPDATE {name} SET
-            interaction_id = %(interactionID)s
+            interaction_id=%(interactionID)s
             WHERE user_id=%(userID)s;
             INSERT INTO {name} 
             {columns}
             SELECT 
             %(userID)s,%(interactionID)s
             WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
-            user_id=%(userID)s;
+            user_id=%(userID)s);
             COMMIT;
                 '''.format(
         name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID})
