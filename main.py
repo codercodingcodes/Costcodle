@@ -65,6 +65,7 @@ def getInterID(userID):
     for i in data:
         results.append(i)
     conn.close()
+    print(results)
     return results[0]
 def updateInterID(userID,interactionID):
     conn = get_connection()
