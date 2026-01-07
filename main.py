@@ -93,7 +93,6 @@ def updateMsg():
         try:
             verify.verify(f'{timestamp}{body}'.encode(),bytes.fromhex(signature))
         except:
-            print("error verifying")
             raise
         if type == 1:
             print("Ping recieved")
@@ -151,69 +150,40 @@ def guessDB():
             curr.execute('''
             BEGIN;
             UPDATE {name} SET
-            high={high},avatar='{avatar}',username='{username}', guess_cnt = guess_cnt + 1, game_completed={gameCompleted}
-            WHERE user_id='{userID}' AND date={date};
+            high=%(high)s,avatar=%(avatar)s,username=%(username)s, guess_cnt = guess_cnt + 1, game_completed=%(gameCompleted)s
+            WHERE user_id=%(userID)s AND date={date};
             INSERT INTO {name} 
             {columns}
             SELECT 
-            {data}
+            %(userID)s,%(high)s,%(low)s,{date},%(guessCnt)s,%(avatar)s,%(username)s,%(gameCompleted)s
             WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
-            user_id='{userID}' AND date={date});
+            user_id=%(userID)s AND date={date});
             COMMIT;
             '''.format(
                 name=DB_GUESS_NAME,
-                high=guess,
                 columns=DB_GUESS_COLUMN,
-                userID=userID,
-                date=date,
-                avatar=avatar,
-                username=username,
-                gameCompleted=gameCompleted,
-                data=DB_GUESS_FORMAT.format(
-                    user_id=userID,
-                    high=guess,
-                    low=0,
-                    date=date,
-                    guess_cnt=0,
-                    avatar=avatar,
-                    username=username,
-                    game_completed=gameCompleted
-                )))
+                date=date),{'high':guess,'avatar':avatar,'username':username,'gameCompleted':gameCompleted,'guessCnt':guessCnt,'low':0,'userID':userID})
 
         elif isLow:
             print("is low")
             curr = conn.cursor()
             curr.execute('''
-            BEGIN;
-            UPDATE {name} SET
-            low={low},avatar='{avatar}',username='{username}', guess_cnt = guess_cnt + 1, game_completed={gameCompleted}
-            WHERE user_id='{userID}' AND date={date};
-            INSERT INTO {name} 
-            {columns}
-            SELECT 
-            {data}
-            WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
-            user_id='{userID}' AND date={date});
-            COMMIT;
-            '''.format(
+                        BEGIN;
+                        UPDATE {name} SET
+                        low=%(low)s,avatar=%(avatar)s,username=%(username)s, guess_cnt = guess_cnt + 1, game_completed=%(gameCompleted)s
+                        WHERE user_id=%(userID)s AND date={date};
+                        INSERT INTO {name} 
+                        {columns}
+                        SELECT 
+                        %(userID)s,%(high)s,%(low)s,{date},%(guessCnt)s,%(avatar)s,%(username)s,%(gameCompleted)s
+                        WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
+                        user_id=%(userID)s AND date={date});
+                        COMMIT;
+                        '''.format(
                 name=DB_GUESS_NAME,
-                low=guess,
                 columns=DB_GUESS_COLUMN,
-                userID=userID,
-                date=date,
-                avatar=avatar,
-                username=username,
-                gameCompleted=gameCompleted,
-                data=DB_GUESS_FORMAT.format(
-                    user_id=userID,
-                    high=0,
-                    low=guess,
-                    date=date,
-                    guess_cnt=0,
-                    avatar=avatar,
-                    username=username,
-                    game_completed=gameCompleted
-                )))
+                date=date), {'high': 0, 'avatar': avatar, 'username': username, 'gameCompleted': gameCompleted,
+                             'guessCnt': guessCnt, 'low': guess, 'userID': userID})
         msg = ""
         if gameCompleted:
             msg = "{user} got today's item in {guessCnt} guesses".format(user=username, guessCnt=guessCnt)
@@ -244,8 +214,8 @@ def guessDB():
         curr = conn.cursor()
         curr.execute('''
         SELECT * FROM {name}
-        WHERE user_id = '{userID}' AND date={date};
-        '''.format(userID=userID,date=getDate(),name=DB_GUESS_NAME))
+        WHERE user_id = %(userID)s AND date={date};
+        '''.format(date=getDate(),name=DB_GUESS_NAME),{'userID':userID})
         data =curr.fetchall()
         results = []
         for i in data:
@@ -261,8 +231,8 @@ def channelDB():
         curr = conn.cursor()
         curr.execute('''
                 SELECT * FROM {name}
-                WHERE '{channelID}'=ANY(channel_ids) AND date={date};
-                '''.format(channelID=channelID,date=getDate(), name=DB_GUESS_NAME))
+                WHERE %(channelID)s=ANY(channel_ids) AND date={date};
+                '''.format(date=getDate(), name=DB_GUESS_NAME),{'channelID':channelID})
         data = curr.fetchall()
         results = []
         for i in data:
@@ -277,14 +247,12 @@ def channelDB():
         curr.execute('''
         BEGIN;
         UPDATE {name}
-        SET channel_ids = array_append(COALESCE(channel_ids, '{{}}'),'{channelID}') 
-        WHERE date = {date} AND user_id = '{userID}' AND NOT ('{channelID}' = ANY(COALESCE(channel_ids, '{{}}')));
+        SET channel_ids = array_append(COALESCE(channel_ids, '{{}}'),%(channelID)s) 
+        WHERE date = {date} AND user_id = %(userID)s AND NOT (%(channelID)s = ANY(COALESCE(channel_ids, '{{}}')));
         COMMIT;'''.format(
-            channelID=channelID,
             date=getDate(),
-            userID=userID,
             name=DB_GUESS_NAME
-        ))
+        ),{'channelID':channelID,'userID':userID})
         logging.info("channel post success")
         return Response("posted", status=200)
 @app.route("/game",methods=["GET"])
