@@ -211,22 +211,42 @@ def guessDB():
         return Response("posted",status=200)
     elif request.method == "GET" and conn:
         userIDs = request.args.getlist("userID")
-        curr = conn.cursor()
-        userID_query = "("
-        for i in userIDs:
-            userID_query += "%s,"
-        userID_query = userID_query[:-1]
-        userID_query += ")"
-        curr.execute('''
-        SELECT * FROM {name}
-        WHERE date={date} AND user_id IN {userIDs};
-        '''.format(date=getDate(),name=DB_GUESS_NAME,userIDs=userID_query),tuple(userIDs))
-        data =curr.fetchall()
-        results = []
-        for i in data:
-            results.append(i)
-        conn.close()
-        return results
+        getHistory = request.args.get("getHistory")
+        if getHistory == 'true':
+            curr = conn.cursor()
+            userID_query = "("
+            for i in userIDs:
+                userID_query += "%s,"
+            userID_query = userID_query[:-1]
+            userID_query += ")"
+            curr.execute('''
+                        SELECT * FROM {name}
+                        WHERE user_id IN {userIDs};
+                        '''.format(name=DB_GUESS_NAME, userIDs=userID_query), tuple(userIDs))
+            data = curr.fetchall()
+            results = []
+            for i in data:
+                results.append(i)
+            conn.close()
+            return results
+        else:
+            curr = conn.cursor()
+            userID_query = "("
+            for i in userIDs:
+                userID_query += "%s,"
+            userID_query = userID_query[:-1]
+            userID_query += ")"
+            curr.execute('''
+                        SELECT * FROM {name}
+                        WHERE date={date} AND user_id IN {userIDs};
+                        '''.format(date=getDate(), name=DB_GUESS_NAME, userIDs=userID_query), tuple(userIDs))
+            data = curr.fetchall()
+            results = []
+            for i in data:
+                results.append(i)
+            conn.close()
+            return results
+
 
 @app.route("/channel",methods=["GET","POST"])
 def channelDB():
