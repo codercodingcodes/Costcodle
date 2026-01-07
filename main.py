@@ -57,15 +57,15 @@ def getInterID(userID):
     curr = conn.cursor()
     curr.execute('''
                 SELECT * FROM {name}
-                WHERE user_id=%s
+                WHERE user_id=%(userID)s;
                 '''.format(
-        name=DB_WEBHOOK_NAME), userID)
+        name=DB_WEBHOOK_NAME), {'userID':userID})
     data = curr.fetchall()
     results = []
     for i in data:
         results.append(i)
     conn.close()
-    return results
+    return results[0]
 def updateInterID(userID,interactionID):
     conn = get_connection()
     curr = conn.cursor()
