@@ -210,12 +210,17 @@ def guessDB():
             conn.close()
         return Response("posted",status=200)
     elif request.method == "GET" and conn:
-        userID = request.args.getlist("userID[]")
+        userIDs = request.args.getlist("userID")
         curr = conn.cursor()
+        userID_query = "("
+        for i in userIDs:
+            userID_query += "%s,"
+        userID_query = userID_query[:-1]
+        userID_query += ")"
         curr.execute('''
         SELECT * FROM {name}
-        WHERE user_id = %(userID)s AND date={date};
-        '''.format(date=getDate(),name=DB_GUESS_NAME),{'userID':userID})
+        WHERE date={date} AND user_id IN {userIDs};
+        '''.format(date=getDate(),name=DB_GUESS_NAME,userIDs=userID_query),tuple(userIDs))
         data =curr.fetchall()
         results = []
         for i in data:
