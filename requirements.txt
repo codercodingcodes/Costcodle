@@ -1,0 +1,6 @@
+Flask==3.1.2
+psycopg2-binary==2.9.11
+requests==2.32.5
+PyNaCl==1.6.1
+sentry-sdk[flask]>=1.45.0
+flask-cors>=3.0.10
