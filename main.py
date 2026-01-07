@@ -102,30 +102,33 @@ def updateMsg():
             })
         elif type == 2:
             print("app command")
+            print(request.json)
             if "user" in request.json:
                 userID = request.json.get("user").get("id")
             else:
                 userID = request.json.get("member").get("user").get("id")
-            print(request.json)
-            print(userID)
-            token = request.json.get("token")
-            interaction_dict[userID] = token
-            return jsonify({
-                "type": 12
-            })
+            if userID:
+                token = request.json.get("token")
+                interaction_dict[userID] = token
+                return jsonify({
+                    "type": 12
+                })
+            else:
+                raise Exception("User ID not found on app launch")
         elif type == 3:
             print("button launch command")
-            if "user" in request.json:
-                userID = request.json.get("user").get("id")
-            else:
-                userID = request.json.get("member").get("user").get("id")
             print(request.json)
-            print(userID)
-            token = request.json.get("token")
-            interaction_dict[userID] = token
-            return jsonify({
-                "type": 12
-            })
+            userID = request.json.get("message").get("interaction_metadata").get("user").get("id")
+            if userID:
+                print(request.json)
+                print(userID)
+                token = request.json.get("token")
+                interaction_dict[userID] = token
+                return jsonify({
+                    "type": 12
+                })
+            else:
+                raise Exception("User ID not found on button ping")
 @app.route("/guess",methods=["POST","GET"])
 def guessDB():
     conn = get_connection()
