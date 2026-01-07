@@ -210,7 +210,7 @@ def guessDB():
             conn.close()
         return Response("posted",status=200)
     elif request.method == "GET" and conn:
-        userID = request.args.get("userID")
+        userID = request.args.getlist("userID[]")
         curr = conn.cursor()
         curr.execute('''
         SELECT * FROM {name}
