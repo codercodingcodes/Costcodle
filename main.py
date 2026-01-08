@@ -234,11 +234,18 @@ def guessDB():
                             "label":"Play"
                             }]
                       }]
+        embeds = [{"type":"image",
+                   "image":{
+                       "url":getGame["game"]["image"],
+                       "height":200,
+                       "width":200
+                   }}]
         url = "https://discord.com/api/v10/webhooks/{appID}/{intToken}".format(appID=clientID,
                                                                                intToken=getInterID(userID))
         json = {
             "content": msg,
-            "components":component
+            "components":component,
+            "embeds":embeds
         }
         if len(msg)>0:
             r = requests.post(url, json=json)
