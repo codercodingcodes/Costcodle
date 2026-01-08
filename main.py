@@ -237,8 +237,8 @@ def guessDB():
         embeds = [{"type":"image",
                    "image":{
                        "url":getGame()["game"]["image"],
-                       "height":200,
-                       "width":200
+                       "height":100,
+                       "width":100
                    }}]
         url = "https://discord.com/api/v10/webhooks/{appID}/{intToken}".format(appID=clientID,
                                                                                intToken=getInterID(userID))
