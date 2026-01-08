@@ -236,7 +236,7 @@ def guessDB():
                       }]
         embeds = [{"type":"image",
                    "image":{
-                       "url":getGame["game"]["image"],
+                       "url":getGame()["game"]["image"],
                        "height":200,
                        "width":200
                    }}]
