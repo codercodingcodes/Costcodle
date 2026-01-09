@@ -92,10 +92,12 @@ def updateInterID(userID,interactionID):
     rowCnt = curr.rowcount
     curr.close()
     conn.close()
-    logging.error("no rows updated for user interaction")
+
     if rowCnt>0:
+        logging.info("user interaction updated")
         return Response("posted",status=200)
     else:
+        logging.error("no rows updated for user interaction")
         return Response("error",status=204)
 @app.route("/",methods=["OPTIONS","GET"])
 def main():
