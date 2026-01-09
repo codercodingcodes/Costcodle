@@ -146,6 +146,7 @@ def updateMsg():
                 "type": 1
             })
         elif type == 2:
+            logging.info("app launch")
             print("app command")
             print(request.json)
             if "user" in request.json:
@@ -166,6 +167,7 @@ def updateMsg():
                 logging.error("user ID not found on app launch")
                 raise Exception("User ID not found on app launch")
         elif type == 3:
+            logging.info("button launch")
             print("button launch command")
             print(request.json)
             if "user" in request.json:
@@ -177,7 +179,8 @@ def updateMsg():
                 print(userID)
                 token = request.json.get("token")
                 updateInterID(userID,token)
-                logging.info(userID,token)
+                logging.info(userID)
+                logging.info(token)
                 logging.info(request.json)
                 return jsonify({
                     "type": 12
