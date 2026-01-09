@@ -7,12 +7,18 @@ import requests
 import time
 from nacl.signing import VerifyKey
 from sentry import tunnel_bp
+import sentry_sdk
 import logging
 import json
 app = Flask(__name__)
 app.register_blueprint(tunnel_bp)
 
 cors = CORS(app,resources={r"/*": {"origins": "https://1445980061390999564.discordsays.com"}})
+
+sentry_sdk.init(
+    dsn="https://b57458227a52237b9a973fa466c31d14@o4510660094787584.ingest.us.sentry.io/4510660099112960",
+    enable_logs=True
+)
 
 DB_GUESS_NAME = "public.guesses"
 DB_WEBHOOK_NAME = "public.interaction"
@@ -83,6 +89,7 @@ def updateInterID(userID,interactionID):
             COMMIT;
                 '''.format(
         name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID})
+    curr.close()
     conn.close()
     return Response("posted",status=200)
 @app.route("/",methods=["OPTIONS","GET"])
@@ -181,9 +188,9 @@ def guessDB():
         guessCnt = int(request.json["guessCnt"]) + 1
         print("avatar",avatar)
         print("username",username)
+        curr = conn.cursor()
         if isHigh:
             print("is high")
-            curr = conn.cursor()
             curr.execute('''
             BEGIN;
             UPDATE {name} SET
@@ -200,10 +207,8 @@ def guessDB():
                 name=DB_GUESS_NAME,
                 columns=DB_GUESS_COLUMN,
                 date=date),{'high':guess,'avatar':avatar,'username':username,'gameCompleted':gameCompleted,'guessCnt':guessCnt,'low':0,'userID':userID})
-
         elif isLow:
             print("is low")
-            curr = conn.cursor()
             curr.execute('''
                         BEGIN;
                         UPDATE {name} SET
@@ -251,7 +256,8 @@ def guessDB():
             r = requests.post(url, json=json)
             httpLog(r,"guess update failure","guess update success")
             r.raise_for_status()
-            conn.close()
+        curr.close()
+        conn.close()
         return Response("posted",status=200)
     elif request.method == "GET" and conn:
         userIDs = request.args.getlist("userID")
@@ -271,6 +277,7 @@ def guessDB():
             results = []
             for i in data:
                 results.append(i)
+            curr.close()
             conn.close()
             return results
         else:
@@ -288,6 +295,7 @@ def guessDB():
             results = []
             for i in data:
                 results.append(i)
+            curr.close()
             conn.close()
             return results
 
@@ -306,6 +314,7 @@ def channelDB():
         results = []
         for i in data:
             results.append(i)
+        curr.close()
         conn.close()
         logging.info("channel get success")
         return results
@@ -323,6 +332,8 @@ def channelDB():
             name=DB_GUESS_NAME
         ),{'channelID':channelID,'userID':userID})
         logging.info("channel post success")
+        curr.close()
+        conn.close()
         return Response("posted", status=200)
 @app.route("/game",methods=["GET"])
 def getGame():
