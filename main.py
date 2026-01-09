@@ -86,10 +86,10 @@ def updateInterID(userID,interactionID):
             %(userID)s,%(interactionID)s
             WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
             user_id=%(userID)s);
+            COMMIT;
                 '''.format(
         name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID})
     rowCnt = curr.rowcount
-    curr.commit()
     curr.close()
     conn.close()
     logging.error("no rows updated for user interaction")
