@@ -161,6 +161,8 @@ def updateMsg():
                     "type": 12
                 })
             else:
+                logging.info(request.json)
+                logging.error("user ID not found on app launch")
                 raise Exception("User ID not found on app launch")
         elif type == 3:
             print("button launch command")
@@ -180,6 +182,8 @@ def updateMsg():
                     "type": 12
                 })
             else:
+                logging.info(request.json)
+                logging.error("user ID not found on app launch")
                 raise Exception("User ID not found on button ping")
 @app.route("/guess",methods=["POST","GET"])
 def guessDB():
