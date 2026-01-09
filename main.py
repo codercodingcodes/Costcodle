@@ -86,12 +86,17 @@ def updateInterID(userID,interactionID):
             %(userID)s,%(interactionID)s
             WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
             user_id=%(userID)s);
-            COMMIT;
                 '''.format(
         name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID})
+    rowCnt = curr.rowcount
+    curr.commit()
     curr.close()
     conn.close()
-    return Response("posted",status=200)
+    logging.error("no rows updated for user interaction")
+    if rowCnt>0:
+        return Response("posted",status=200)
+    else:
+        return Response("error",status=204)
 @app.route("/",methods=["OPTIONS","GET"])
 def main():
     if request.method=="GET":
@@ -150,6 +155,8 @@ def updateMsg():
             if userID:
                 token = request.json.get("token")
                 updateInterID(userID,token)
+                logging.info(userID, token)
+                logging.info(request.json)
                 return jsonify({
                     "type": 12
                 })
@@ -167,6 +174,8 @@ def updateMsg():
                 print(userID)
                 token = request.json.get("token")
                 updateInterID(userID,token)
+                logging.info(userID,token)
+                logging.info(request.json)
                 return jsonify({
                     "type": 12
                 })
