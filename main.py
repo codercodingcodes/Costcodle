@@ -155,7 +155,8 @@ def updateMsg():
             if userID:
                 token = request.json.get("token")
                 updateInterID(userID,token)
-                logging.info(userID, token)
+                logging.info(userID)
+                logging.info(token)
                 logging.info(request.json)
                 return jsonify({
                     "type": 12
