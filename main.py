@@ -52,6 +52,8 @@ def get_connection():
         return False
 def getDate():
     return int(((time.time())//86400)%3399)
+def getTime():
+    return int(time.time()%86400)
 def httpLog(r,fMsg,sMsg):
     if r.status_code > 200:
         logging.error(str(r.status_code)+" "+fMsg)
@@ -357,11 +359,13 @@ def channelDB():
 @app.route("/game",methods=["GET"])
 def getGame():
     date = getDate()
+    time = getTime()
     game = gameData["game-"+str(date)]
     logging.info("game retrieved")
     logging.info(game)
     return {"date":date,
-            "game":game}
+            "game":game,
+            "time":time}
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
