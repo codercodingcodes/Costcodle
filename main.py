@@ -46,7 +46,8 @@ def get_connection():
             database=database,
             user=username,
             password=password,
-            host=hostname
+            host=hostname,
+            connect_timeout=10
         )
     except:
         return False
