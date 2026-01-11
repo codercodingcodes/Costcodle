@@ -78,7 +78,6 @@ def updateInterID(userID,interactionID):
     conn = get_connection()
     curr = conn.cursor()
     curr.execute('''
-            BEGIN;
             UPDATE {name} SET
             interaction_id=%(interactionID)s
             WHERE user_id=%(userID)s;
@@ -88,10 +87,22 @@ def updateInterID(userID,interactionID):
             %(userID)s,%(interactionID)s
             WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
             user_id=%(userID)s);
-            COMMIT;
                 '''.format(
         name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID})
     rowCnt = curr.rowcount
+    logging.info(curr.mogrify('''
+            UPDATE {name} SET
+            interaction_id=%(interactionID)s
+            WHERE user_id=%(userID)s;
+            INSERT INTO {name} 
+            {columns}
+            SELECT 
+            %(userID)s,%(interactionID)s
+            WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
+            user_id=%(userID)s);
+                '''.format(
+        name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID}).decode('utf-8'))
+    curr.commit()
     curr.close()
     conn.close()
 
