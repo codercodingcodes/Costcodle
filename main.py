@@ -392,7 +392,7 @@ def getGame():
             "game": game,
             "time": time}
 
-@app.route("/register",method=["POST"])
+@app.route("/register",methods=["POST"])
 def register():
     sessionID = request.json["sessionID"]
     userID = request.json["userID"]
