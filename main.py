@@ -73,7 +73,7 @@ def httpLog(r, fMsg, sMsg):
         logging.info(sMsg)
 
 
-def getInterID(userID,sessionID):
+def getInterID(userID,sessionID=""):
     conn = get_connection()
     curr = conn.cursor()
     curr.execute('''
