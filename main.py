@@ -78,7 +78,7 @@ def getInterID(userID,sessionID):
     curr = conn.cursor()
     curr.execute('''
                 SELECT * FROM {name}
-                WHERE user_id=%(userID)s OR sessionID=%(sessionID)s;
+                WHERE user_id=%(userID)s OR session_id=%(sessionID)s;
                 '''.format(
         name=DB_WEBHOOK_NAME), {'userID': userID,'sessionID':sessionID})
     data = curr.fetchall()
