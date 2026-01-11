@@ -66,10 +66,12 @@ def getTime():
 
 
 def httpLog(r, fMsg, sMsg):
-    if r.status_code > 200:
+    if r.status_code != 200:
         logging.error(str(r.status_code) + " " + fMsg)
         logging.error(r.text)
     else:
+        logging.info(r.status_code)
+        logging.info(r.text)
         logging.info(sMsg)
 
 
@@ -86,6 +88,8 @@ def getInterID(userID,sessionID=""):
     for i in data:
         results.append(i)
     conn.close()
+    logging.info("results")
+    logging.info(results)
     return results[0][2]
 
 
