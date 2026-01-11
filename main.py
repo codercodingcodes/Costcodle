@@ -102,7 +102,7 @@ def updateInterID(userID,interactionID):
             user_id=%(userID)s);
                 '''.format(
         name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID}).decode('utf-8'))
-    curr.commit()
+    conn.commit()
     curr.close()
     conn.close()
 
