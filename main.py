@@ -10,10 +10,11 @@ from sentry import tunnel_bp
 import sentry_sdk
 import logging
 import json
+
 app = Flask(__name__)
 app.register_blueprint(tunnel_bp)
 
-cors = CORS(app,resources={r"/*": {"origins": "https://1445980061390999564.discordsays.com"}})
+cors = CORS(app, resources={r"/*": {"origins": "https://1445980061390999564.discordsays.com"}})
 
 sentry_sdk.init(
     dsn="https://b57458227a52237b9a973fa466c31d14@o4510660094787584.ingest.us.sentry.io/4510660099112960",
@@ -23,7 +24,7 @@ sentry_sdk.init(
 DB_GUESS_NAME = "public.guesses"
 DB_WEBHOOK_NAME = "public.interaction"
 DB_GUESS_COLUMN = '("user_id","high","low","date","guess_cnt","avatar","username","game_completed")'
-DB_WEBHOOK_COLUMN = '("user_id","interaction_id")'
+DB_WEBHOOK_COLUMN = '("user_id","interaction_id","session_id")'
 
 clientID = os.environ.get("CLIENT_ID", "")
 clientSec = os.environ.get("CLIENT_SEC", "")
@@ -33,8 +34,10 @@ redirectURI = os.environ.get("REDIRECT_URI", "")
 DB_URL = os.environ.get("DB_URL", "")
 
 logging.basicConfig(level=logging.DEBUG)
-with open('games.json','r') as file:
+with open('games.json', 'r') as file:
     gameData = json.load(file)
+
+
 def get_connection():
     result = urlparse(DB_URL)
     username = result.username
@@ -42,7 +45,7 @@ def get_connection():
     database = result.path[1:]
     hostname = result.hostname
     try:
-         return psycopg2.connect(
+        return psycopg2.connect(
             database=database,
             user=username,
             password=password,
@@ -52,81 +55,83 @@ def get_connection():
     except:
         logging.error("DB connection failed")
         return False
+
+
 def getDate():
-    return int(((time.time())//86400)%3399)
+    return int(((time.time()) // 86400) % 3399)
+
+
 def getTime():
-    return int(time.time()%86400)
-def httpLog(r,fMsg,sMsg):
+    return int(time.time() % 86400)
+
+
+def httpLog(r, fMsg, sMsg):
     if r.status_code > 200:
-        logging.error(str(r.status_code)+" "+fMsg)
+        logging.error(str(r.status_code) + " " + fMsg)
         logging.error(r.text)
     else:
         logging.info(sMsg)
-def getInterID(userID):
+
+
+def getInterID(userID,sessionID):
     conn = get_connection()
     curr = conn.cursor()
     curr.execute('''
                 SELECT * FROM {name}
-                WHERE user_id=%(userID)s;
+                WHERE user_id=%(userID)s OR sessionID=%(sessionID)s;
                 '''.format(
-        name=DB_WEBHOOK_NAME), {'userID':userID})
+        name=DB_WEBHOOK_NAME), {'userID': userID,'sessionID':sessionID})
     data = curr.fetchall()
     results = []
     for i in data:
         results.append(i)
     conn.close()
     return results[0][2]
-def updateInterID(userID,interactionID):
+
+
+def updateInterID(userID, interactionID, sessionID):
     conn = get_connection()
     curr = conn.cursor()
     curr.execute('''
             UPDATE {name} SET
-            interaction_id=%(interactionID)s
+            interaction_id=%(interactionID)s, session_id=%(sessionID)s
             WHERE user_id=%(userID)s;
             INSERT INTO {name} 
             {columns}
             SELECT 
-            %(userID)s,%(interactionID)s
+            %(userID)s,%(interactionID)s,%(sessionID)s
             WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
             user_id=%(userID)s);
                 '''.format(
-        name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID})
+        name=DB_WEBHOOK_NAME, columns=DB_WEBHOOK_COLUMN), {'userID': userID, 'interactionID': interactionID,'sessionID':sessionID})
     rowCnt = curr.rowcount
-    logging.info(curr.mogrify('''
-            UPDATE {name} SET
-            interaction_id=%(interactionID)s
-            WHERE user_id=%(userID)s;
-            INSERT INTO {name} 
-            {columns}
-            SELECT 
-            %(userID)s,%(interactionID)s
-            WHERE NOT EXISTS (SELECT 1 FROM {name} WHERE 
-            user_id=%(userID)s);
-                '''.format(
-        name=DB_WEBHOOK_NAME,columns=DB_WEBHOOK_COLUMN), {'userID':userID,'interactionID':interactionID}).decode('utf-8'))
     conn.commit()
     curr.close()
     conn.close()
 
-    if rowCnt>0:
+    if rowCnt > 0:
         logging.info("user interaction updated")
-        return Response("posted",status=200)
+        return Response("posted", status=200)
     else:
         logging.error("no rows updated for user interaction")
-        return Response("error",status=204)
-@app.route("/",methods=["OPTIONS","GET"])
+        return Response("error", status=204)
+
+
+@app.route("/", methods=["OPTIONS", "GET"])
 def main():
-    if request.method=="GET":
+    if request.method == "GET":
         return "hello world"
-    elif request.method=="OPTIONS":
+    elif request.method == "OPTIONS":
         print(request.environ.get('HTTP_ORIGIN', 'default value'))
         print("options requested")
-        return {},200,{"Access-Control-Allow-Origin":"https://1445980061390999564.discordsays.com",
-          "Access-Control-Allow-Credentials": True,
-          "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-          "Access-Control-Allow-Headers":"*",
-                       "Access-Control-Max-Age":86400}
-@app.route("/auth",methods=["POST"])
+        return {}, 200, {"Access-Control-Allow-Origin": "https://1445980061390999564.discordsays.com",
+                         "Access-Control-Allow-Credentials": True,
+                         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+                         "Access-Control-Allow-Headers": "*",
+                         "Access-Control-Max-Age": 86400}
+
+
+@app.route("/auth", methods=["POST"])
 def getAuthToken():
     if request.method == "POST":
         code = request.json.get("code")
@@ -136,13 +141,15 @@ def getAuthToken():
             "code": code,
             "redirect_uri": redirectURI
         }
-        headers = {"Content-Type":'application/x-www-form-urlencoded'}
-        r = requests.post('%s/oauth2/token' % API_ENDPOINT, data=data, headers=headers, auth=(clientID,clientSec))
-        print(r,"token")
-        httpLog(r,"oAuth failed","oAuth success")
+        headers = {"Content-Type": 'application/x-www-form-urlencoded'}
+        r = requests.post('%s/oauth2/token' % API_ENDPOINT, data=data, headers=headers, auth=(clientID, clientSec))
+        print(r, "token")
+        httpLog(r, "oAuth failed", "oAuth success")
         r.raise_for_status()
         return r.json()
-@app.route("/updateMsg",methods=["POST"])
+
+
+@app.route("/updateMsg", methods=["POST"])
 def updateMsg():
     if request.method == "POST":
         signature = request.headers.get("X-Signature-Ed25519")
@@ -151,10 +158,10 @@ def updateMsg():
         body = request.data.decode("utf-8")
         verify = VerifyKey(bytes.fromhex(clientPub))
         print(request.data)
-        print(type,body)
+        print(type, body)
         logging.info("{type} ping recieved".format(type=type))
         try:
-            verify.verify(f'{timestamp}{body}'.encode(),bytes.fromhex(signature))
+            verify.verify(f'{timestamp}{body}'.encode(), bytes.fromhex(signature))
         except:
             raise
         if type == 1:
@@ -172,7 +179,7 @@ def updateMsg():
                 userID = request.json.get("member").get("user").get("id")
             if userID:
                 token = request.json.get("token")
-                updateInterID(userID,token)
+                updateInterID(userID, token,"")
                 logging.info(userID)
                 logging.info(token)
                 logging.info(request.json)
@@ -195,7 +202,7 @@ def updateMsg():
                 print(request.json)
                 print(userID)
                 token = request.json.get("token")
-                updateInterID(userID,token)
+                updateInterID(userID, token,"")
                 logging.info(userID)
                 logging.info(token)
                 logging.info(request.json)
@@ -206,7 +213,9 @@ def updateMsg():
                 logging.info(request.json)
                 logging.error("user ID not found on app launch")
                 raise Exception("User ID not found on button ping")
-@app.route("/guess",methods=["POST","GET"])
+
+
+@app.route("/guess", methods=["POST", "GET"])
 def guessDB():
     conn = get_connection()
     if request.method == "POST" and conn:
@@ -220,8 +229,8 @@ def guessDB():
         username = request.json["username"]
         gameCompleted = request.json["gameCompleted"]
         guessCnt = int(request.json["guessCnt"]) + 1
-        print("avatar",avatar)
-        print("username",username)
+        print("avatar", avatar)
+        print("username", username)
         curr = conn.cursor()
         if isHigh:
             print("is high")
@@ -240,7 +249,8 @@ def guessDB():
             '''.format(
                 name=DB_GUESS_NAME,
                 columns=DB_GUESS_COLUMN,
-                date=date),{'high':guess,'avatar':avatar,'username':username,'gameCompleted':gameCompleted,'guessCnt':guessCnt,'low':0,'userID':userID})
+                date=date), {'high': guess, 'avatar': avatar, 'username': username, 'gameCompleted': gameCompleted,
+                             'guessCnt': guessCnt, 'low': 0, 'userID': userID})
         elif isLow:
             print("is low")
             curr.execute('''
@@ -265,34 +275,34 @@ def guessDB():
             msg = "{user} got today's item in {guessCnt} guesses".format(user=username, guessCnt=guessCnt)
         elif not gameCompleted and guessCnt == 5:
             msg = "Better luck tomorrow {user}!".format(user=username)
-        component = [{"type":1,
+        component = [{"type": 1,
                       "components":
-                          [{"type":2,
-                            "custom_id":"launch",
-                            "style":1,
-                            "label":"Play"
+                          [{"type": 2,
+                            "custom_id": "launch",
+                            "style": 1,
+                            "label": "Play"
                             }]
                       }]
-        embeds = [{"type":"image",
-                   "image":{
-                       "url":getGame()["game"]["image"],
-                       "height":100,
-                       "width":100
+        embeds = [{"type": "image",
+                   "image": {
+                       "url": getGame()["game"]["image"],
+                       "height": 100,
+                       "width": 100
                    }}]
         url = "https://discord.com/api/v10/webhooks/{appID}/{intToken}".format(appID=clientID,
                                                                                intToken=getInterID(userID))
         json = {
             "content": msg,
-            "components":component,
-            "embeds":embeds
+            "components": component,
+            "embeds": embeds
         }
-        if len(msg)>0:
+        if len(msg) > 0:
             r = requests.post(url, json=json)
-            httpLog(r,"guess update failure","guess update success")
+            httpLog(r, "guess update failure", "guess update success")
             r.raise_for_status()
         curr.close()
         conn.close()
-        return Response("posted",status=200)
+        return Response("posted", status=200)
     elif request.method == "GET" and conn:
         userIDs = request.args.getlist("userID")
         getHistory = request.args.get("getHistory")
@@ -334,7 +344,7 @@ def guessDB():
             return results
 
 
-@app.route("/channel",methods=["GET","POST"])
+@app.route("/channel", methods=["GET", "POST"])
 def channelDB():
     conn = get_connection()
     if request.method == "GET" and conn:
@@ -343,7 +353,7 @@ def channelDB():
         curr.execute('''
                 SELECT * FROM {name}
                 WHERE %(channelID)s=ANY(channel_ids) AND date={date};
-                '''.format(date=getDate(), name=DB_GUESS_NAME),{'channelID':channelID})
+                '''.format(date=getDate(), name=DB_GUESS_NAME), {'channelID': channelID})
         data = curr.fetchall()
         results = []
         for i in data:
@@ -364,21 +374,30 @@ def channelDB():
         COMMIT;'''.format(
             date=getDate(),
             name=DB_GUESS_NAME
-        ),{'channelID':channelID,'userID':userID})
+        ), {'channelID': channelID, 'userID': userID})
         logging.info("channel post success")
         curr.close()
         conn.close()
         return Response("posted", status=200)
-@app.route("/game",methods=["GET"])
+
+
+@app.route("/game", methods=["GET"])
 def getGame():
     date = getDate()
     time = getTime()
-    game = gameData["game-"+str(date)]
+    game = gameData["game-" + str(date)]
     logging.info("game retrieved")
     logging.info(game)
-    return {"date":date,
-            "game":game,
-            "time":time}
+    return {"date": date,
+            "game": game,
+            "time": time}
+
+@app.route("/register",method=["POST"])
+def register():
+    sessionID = request.json["sessionID"]
+    userID = request.json["userID"]
+    interID = getInterID(userID,sessionID)
+    updateInterID(userID,interID,sessionID)
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
