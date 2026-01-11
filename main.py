@@ -50,6 +50,7 @@ def get_connection():
             connect_timeout=10
         )
     except:
+        logging.error("DB connection failed")
         return False
 def getDate():
     return int(((time.time())//86400)%3399)
