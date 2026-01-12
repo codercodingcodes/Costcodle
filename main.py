@@ -419,8 +419,10 @@ def register():
     interID = getInterID(userID,sessionID)
     rowCnt = updateInterID(userID,interID,sessionID)
     if rowCnt>0:
+        logging.info("user registration success")
         return Response("registered",status=200)
     else:
+        logging.error("user registration failed: no updates")
         return Response("registration failed, user not updated",status=500)
 
 if __name__ == "__main__":
