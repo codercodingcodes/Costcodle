@@ -78,11 +78,19 @@ def httpLog(r, fMsg, sMsg):
 def getInterID(userID,sessionID=""):
     conn = get_connection()
     curr = conn.cursor()
-    curr.execute('''
-                SELECT * FROM {name}
-                WHERE user_id=%(userID)s OR session_id=%(sessionID)s;
-                '''.format(
-        name=DB_WEBHOOK_NAME), {'userID': userID,'sessionID':sessionID})
+    if len(sessionID)>0:
+        curr.execute('''
+                    SELECT * FROM {name}
+                    WHERE user_id=%(userID)s OR session_id=%(sessionID)s;
+                    '''.format(
+            name=DB_WEBHOOK_NAME), {'userID': userID,'sessionID':sessionID})
+
+    else:
+        curr.execute('''
+                            SELECT * FROM {name}
+                            WHERE user_id=%(userID)s;
+                            '''.format(
+            name=DB_WEBHOOK_NAME), {'userID': userID})
     data = curr.fetchall()
     results = []
     for i in data:
