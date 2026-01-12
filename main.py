@@ -417,6 +417,9 @@ def register():
     sessionID = request.json["sessionID"]
     userID = request.json["userID"]
     interID = getInterID(userID,sessionID)
+    logging.info(sessionID)
+    logging.info(userID)
+    logging.info(interID)
     rowCnt = updateInterID(userID,interID,sessionID)
     if rowCnt>0:
         logging.info("user registration success")
