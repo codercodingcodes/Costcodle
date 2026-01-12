@@ -80,16 +80,16 @@ def getInterID(userID,sessionID=""):
     curr = conn.cursor()
     if len(sessionID)>0:
         curr.execute('''
-                    SELECT * FROM {name}
-                    WHERE user_id=%(userID)s OR session_id=%(sessionID)s;
-                    '''.format(
+        SELECT * FROM {name}
+        WHERE user_id=%(userID)s OR session_id=%(sessionID)s;
+        '''.format(
             name=DB_WEBHOOK_NAME), {'userID': userID,'sessionID':sessionID})
 
     else:
         curr.execute('''
-                            SELECT * FROM {name}
-                            WHERE user_id=%(userID)s;
-                            '''.format(
+        SELECT * FROM {name}
+        WHERE user_id=%(userID)s;
+        '''.format(
             name=DB_WEBHOOK_NAME), {'userID': userID})
     data = curr.fetchall()
     results = []
@@ -98,7 +98,10 @@ def getInterID(userID,sessionID=""):
     conn.close()
     logging.info("results")
     logging.info(results)
-    return results[0][2]
+    if len(results)>0:
+        return results[0][2]
+    else:
+        return ""
 
 
 def updateInterID(userID, interactionID, sessionID):
@@ -123,10 +126,9 @@ def updateInterID(userID, interactionID, sessionID):
 
     if rowCnt > 0:
         logging.info("user interaction updated")
-        return Response("posted", status=200)
     else:
         logging.error("no rows updated for user interaction")
-        return Response("error", status=204)
+    return rowCnt
 
 
 @app.route("/", methods=["OPTIONS", "GET"])
@@ -301,17 +303,23 @@ def guessDB():
                        "height": 100,
                        "width": 100
                    }}]
-        url = "https://discord.com/api/v10/webhooks/{appID}/{intToken}".format(appID=clientID,
-                                                                               intToken=getInterID(userID))
-        json = {
-            "content": msg,
-            "components": component,
-            "embeds": embeds
-        }
-        if len(msg) > 0:
-            r = requests.post(url, json=json)
-            httpLog(r, "guess update failure", "guess update success")
-            r.raise_for_status()
+        intToken = getInterID(userID)
+        if len(intToken)>0:
+            url = "https://discord.com/api/v10/webhooks/{appID}/{intToken}".format(appID=clientID,
+                                                                                   intToken=intToken)
+            json = {
+                "content": msg,
+                "components": component,
+                "embeds": embeds
+            }
+            if len(msg) > 0:
+                r = requests.post(url, json=json)
+                httpLog(r, "guess update failure", "guess update success")
+                r.raise_for_status()
+        else:
+            curr.close()
+            conn.close()
+            return Response("No session id found", status=500)
         curr.close()
         conn.close()
         return Response("posted", status=200)
@@ -409,8 +417,11 @@ def register():
     sessionID = request.json["sessionID"]
     userID = request.json["userID"]
     interID = getInterID(userID,sessionID)
-    updateInterID(userID,interID,sessionID)
-    return Response("registered",status=200)
+    rowCnt = updateInterID(userID,interID,sessionID)
+    if rowCnt>0:
+        return Response("registered",status=200)
+    else:
+        return Response("registration failed, user not updated",status=500)
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
