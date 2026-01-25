@@ -131,7 +131,7 @@ def updateInterID(userID, interactionID, sessionID):
     return rowCnt
 
 
-@app.route("/", methods=["OPTIONS", "GET","POST"])
+@app.route("/", methods=["OPTIONS", "GET"])
 def main():
     if request.method == "GET":
         return "hello world"
