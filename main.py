@@ -131,7 +131,7 @@ def updateInterID(userID, interactionID, sessionID):
     return rowCnt
 
 
-@app.route("/", methods=["OPTIONS", "GET"])
+@app.route("/", methods=["OPTIONS", "GET","POST"])
 def main():
     if request.method == "GET":
         return "hello world"
@@ -143,6 +143,38 @@ def main():
                          "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
                          "Access-Control-Allow-Headers": "*",
                          "Access-Control-Max-Age": 86400}
+    elif request.method == "POST":
+        API_ENDPOINT = 'https://discord.com/api/v10'
+
+        data = {
+            'grant_type': 'client_credentials',
+            'scope': 'applications.commands.update'
+        }
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        r = requests.post('%s/oauth2/token' % API_ENDPOINT, data=data, headers=headers,
+                          auth=(clientID, clientSec))
+        r.raise_for_status()
+        data = r.json()
+        token = data["access_token"]
+        url = "https://discord.com/api/v10/applications/{appID}/commands".format(appID=clientID)
+
+        # This is an example CHAT_INPUT or Slash Command, with a type of 1
+        json = {
+            "name": "play",
+            "type": 1,
+            "description": "play costcodle in your channel"
+        }
+
+        # or a client credentials token for your app with the applications.commands.update scope
+        headers = {
+            "Authorization": "Bearer {token}".format(token=token)
+        }
+
+        r = requests.post(url, headers=headers, json=json)
+        r.raise_for_status()
+        return r.json()
 
 
 @app.route("/auth", methods=["POST"])
@@ -177,6 +209,7 @@ def updateMsg():
         try:
             verify.verify(f'{timestamp}{body}'.encode(), bytes.fromhex(signature))
         except:
+            logging.error("ping verification failed")
             raise
         if type == 1:
             print("Ping recieved")
