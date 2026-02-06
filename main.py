@@ -58,7 +58,7 @@ def get_connection():
 
 
 def getDate():
-    return int(((time.time()) // 86400) % 3399)
+    return int((((time.time()) // 86400)+100) % 3399)
 
 
 def getTime():
