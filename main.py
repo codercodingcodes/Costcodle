@@ -1,6 +1,5 @@
 import os
 from flask import Flask, request, Response, jsonify
-from flask_cors import CORS
 from urllib.parse import urlparse
 import psycopg2
 import requests
@@ -13,8 +12,6 @@ import json
 
 app = Flask(__name__)
 app.register_blueprint(tunnel_bp)
-
-cors = CORS(app, resources={r"/*": {"origins": "https://1445980061390999564.discordsays.com"}})
 
 sentry_sdk.init(
     dsn="https://b57458227a52237b9a973fa466c31d14@o4510660094787584.ingest.us.sentry.io/4510660099112960",
@@ -339,12 +336,11 @@ def guessDB():
                         WHERE user_id IN {userIDs};
                         '''.format(name=DB_GUESS_NAME, userIDs=userID_query), tuple(userIDs))
             data = curr.fetchall()
-            results = []
             for i in data:
-                results.append(i)
+                print(i)
             curr.close()
             conn.close()
-            return results
+            return
         else:
             curr = conn.cursor()
             userID_query = "("
@@ -364,7 +360,7 @@ def guessDB():
             conn.close()
             return results
 
-
+    
 @app.route("/channel", methods=["GET", "POST"])
 def channelDB():
     conn = get_connection()
@@ -412,6 +408,29 @@ def getGame():
     return {"date": date,
             "game": game,
             "time": time}
+
+
+@app.route("/winDistribution", methods=["GET"])
+def winDistribution():
+    conn = get_connection()
+    if not conn:
+        return Response("DB connection failed", status=500)
+    curr = conn.cursor()
+    curr.execute('''
+        SELECT guess_cnt, COUNT(*) FROM {name}
+        WHERE date={date} AND game_completed=true
+        GROUP BY guess_cnt;
+        '''.format(date=getDate(), name=DB_GUESS_NAME))
+    rows = curr.fetchall()
+    curr.close()
+    conn.close()
+    distribution = [0, 0, 0, 0, 0]
+    for guess_cnt, count in rows:
+        if 1 <= guess_cnt <= 5:
+            distribution[guess_cnt - 1] = count
+    logging.info("win distribution retrieved")
+    logging.info(distribution)
+    return distribution
 
 @app.route("/register",methods=["POST"])
 def register():
