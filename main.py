@@ -337,10 +337,10 @@ def guessDB():
                         '''.format(name=DB_GUESS_NAME, userIDs=userID_query), tuple(userIDs))
             data = curr.fetchall()
             for i in data:
-                print(i)
+                results.append(i)
             curr.close()
             conn.close()
-            return
+            return results
         else:
             curr = conn.cursor()
             userID_query = "("
