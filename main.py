@@ -336,6 +336,7 @@ def guessDB():
                         WHERE user_id IN {userIDs};
                         '''.format(name=DB_GUESS_NAME, userIDs=userID_query), tuple(userIDs))
             data = curr.fetchall()
+            results = []
             for i in data:
                 results.append(i)
             curr.close()
