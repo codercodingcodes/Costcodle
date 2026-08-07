@@ -1,10 +1,11 @@
 import os
 from flask import Flask, request, Response, jsonify
-from flask_cors import CORS
 from urllib.parse import urlparse
+from functools import wraps
 import psycopg2
 import requests
 import time
+import jwt
 from nacl.signing import VerifyKey
 from sentry import tunnel_bp
 import sentry_sdk
@@ -13,8 +14,6 @@ import json
 
 app = Flask(__name__)
 app.register_blueprint(tunnel_bp)
-
-cors = CORS(app, resources={r"/*": {"origins": "https://1445980061390999564.discordsays.com"}})
 
 sentry_sdk.init(
     dsn="https://b57458227a52237b9a973fa466c31d14@o4510660094787584.ingest.us.sentry.io/4510660099112960",
@@ -32,6 +31,8 @@ clientPub = os.environ.get("CLIENT_PUB", "")
 API_ENDPOINT = os.environ.get("API_ENDPOINT", "")
 redirectURI = os.environ.get("REDIRECT_URI", "")
 DB_URL = os.environ.get("DB_URL", "")
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
+JWT_EXPIRY_SECONDS = int(os.environ.get("JWT_EXPIRY_SECONDS", "86400"))
 
 logging.basicConfig(level=logging.DEBUG)
 with open('games.json', 'r') as file:
@@ -73,6 +74,54 @@ def httpLog(r, fMsg, sMsg):
         logging.info(r.status_code)
         logging.info(r.text)
         logging.info(sMsg)
+
+
+def create_jwt(user_id):
+    if not JWT_SECRET:
+        raise RuntimeError("JWT_SECRET is not configured")
+    now = int(time.time())
+    payload = {
+        "sub": str(user_id),
+        "iat": now,
+        "exp": now + JWT_EXPIRY_SECONDS,
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
+
+def decode_jwt(token):
+    return jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+
+
+def get_bearer_token():
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    return auth_header[7:].strip()
+
+
+def require_jwt(f):
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if request.method == "OPTIONS":
+            return f(*args, **kwargs)
+        if not JWT_SECRET:
+            logging.error("JWT_SECRET is not configured")
+            return Response("Server auth misconfigured", status=500)
+        token = get_bearer_token()
+        if not token:
+            return Response("Missing authorization token", status=401)
+        try:
+            payload = decode_jwt(token)
+            user_id = payload.get("sub")
+            if not user_id:
+                return Response("Invalid authorization token", status=401)
+            request.jwt_user_id = str(user_id)
+        except jwt.ExpiredSignatureError:
+            return Response("Authorization token expired", status=401)
+        except jwt.InvalidTokenError:
+            return Response("Invalid authorization token", status=401)
+        return f(*args, **kwargs)
+    return wrapped
 
 
 def getInterID(userID,sessionID=""):
@@ -143,38 +192,6 @@ def main():
                          "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
                          "Access-Control-Allow-Headers": "*",
                          "Access-Control-Max-Age": 86400}
-    # elif request.method == "POST":
-    #     API_ENDPOINT = 'https://discord.com/api/v10'
-    #
-    #     data = {
-    #         'grant_type': 'client_credentials',
-    #         'scope': 'applications.commands.update'
-    #     }
-    #     headers = {
-    #         'Content-Type': 'application/x-www-form-urlencoded'
-    #     }
-    #     r = requests.post('%s/oauth2/token' % API_ENDPOINT, data=data, headers=headers,
-    #                       auth=(clientID, clientSec))
-    #     r.raise_for_status()
-    #     data = r.json()
-    #     token = data["access_token"]
-    #     url = "https://discord.com/api/v10/applications/{appID}/commands".format(appID=clientID)
-    #
-    #     # This is an example CHAT_INPUT or Slash Command, with a type of 1
-    #     json = {
-    #         "name": "play",
-    #         "type": 1,
-    #         "description": "play costcodle in your channel"
-    #     }
-    #
-    #     # or a client credentials token for your app with the applications.commands.update scope
-    #     headers = {
-    #         "Authorization": "Bearer {token}".format(token=token)
-    #     }
-    #
-    #     r = requests.post(url, headers=headers, json=json)
-    #     r.raise_for_status()
-    #     return r.json()
 
 
 @app.route("/auth", methods=["POST"])
@@ -192,7 +209,31 @@ def getAuthToken():
         print(r, "token")
         httpLog(r, "oAuth failed", "oAuth success")
         r.raise_for_status()
-        return r.json()
+        oauth = r.json()
+        access_token = oauth.get("access_token")
+        if not access_token:
+            return Response("Discord access token missing", status=500)
+
+        user_resp = requests.get(
+            "%s/users/@me" % API_ENDPOINT,
+            headers={"Authorization": "Bearer %s" % access_token}
+        )
+        httpLog(user_resp, "Discord user lookup failed", "Discord user lookup success")
+        user_resp.raise_for_status()
+        discord_user = user_resp.json()
+        user_id = discord_user.get("id")
+        if not user_id:
+            return Response("Discord user id missing", status=500)
+
+        try:
+            app_token = create_jwt(user_id)
+        except RuntimeError as e:
+            logging.error(str(e))
+            return Response("Server auth misconfigured", status=500)
+
+        oauth["token"] = app_token
+        oauth["user_id"] = user_id
+        return jsonify(oauth)
 
 
 @app.route("/updateMsg", methods=["POST"])
@@ -263,13 +304,14 @@ def updateMsg():
 
 
 @app.route("/guess", methods=["POST", "GET"])
+@require_jwt
 def guessDB():
     conn = get_connection()
     if request.method == "POST" and conn:
         date = getDate()
         print(request.json)
         guess = request.json["guess"]
-        userID = request.json["userID"]
+        userID = request.jwt_user_id
         isHigh = request.json["isHigh"]
         isLow = request.json["isLow"]
         avatar = request.json["avatar"]
@@ -332,7 +374,7 @@ def guessDB():
                       }]
         embeds = [{"type": "image",
                    "image": {
-                       "url": getGame()["game"]["image"],
+                       "url": get_game_payload()["game"]["image"],
                        "height": 100,
                        "width": 100
                    }}]
@@ -396,8 +438,9 @@ def guessDB():
             conn.close()
             return results
 
-
+    
 @app.route("/channel", methods=["GET", "POST"])
+@require_jwt
 def channelDB():
     conn = get_connection()
     if request.method == "GET" and conn:
@@ -417,7 +460,7 @@ def channelDB():
         return results
     elif request.method == "POST" and conn:
         channelID = request.json["channelID"]
-        userID = request.json["userID"]
+        userID = request.jwt_user_id
         curr = conn.cursor()
         curr.execute('''
         BEGIN;
@@ -434,8 +477,7 @@ def channelDB():
         return Response("posted", status=200)
 
 
-@app.route("/game", methods=["GET"])
-def getGame():
+def get_game_payload():
     date = getDate()
     time = getTime()
     game = gameData["game-" + str(date)]
@@ -445,10 +487,42 @@ def getGame():
             "game": game,
             "time": time}
 
+
+@app.route("/game", methods=["GET"])
+@require_jwt
+def getGame():
+    return get_game_payload()
+
+
+@app.route("/winDistribution", methods=["GET"])
+@require_jwt
+def winDistribution():
+    conn = get_connection()
+    if not conn:
+        return Response("DB connection failed", status=500)
+    curr = conn.cursor()
+    curr.execute('''
+        SELECT guess_cnt, COUNT(*) FROM {name}
+        WHERE date={date} AND game_completed=true
+        GROUP BY guess_cnt;
+        '''.format(date=getDate(), name=DB_GUESS_NAME))
+    rows = curr.fetchall()
+    curr.close()
+    conn.close()
+    distribution = [0, 0, 0, 0, 0]
+    for guess_cnt, count in rows:
+        if 1 <= guess_cnt <= 5:
+            distribution[guess_cnt - 1] = count
+    logging.info("win distribution retrieved")
+    logging.info(distribution)
+    logging.info(rows)
+    return distribution
+
 @app.route("/register",methods=["POST"])
+@require_jwt
 def register():
     sessionID = request.json["sessionID"]
-    userID = request.json["userID"]
+    userID = request.jwt_user_id
     interID = getInterID(userID,sessionID)
     logging.info(sessionID)
     logging.info(userID)
