@@ -480,7 +480,8 @@ def channelDB():
 def get_game_payload():
     date = getDate()
     time = getTime()
-    game = gameData["game-" + str(date)]
+    # games.json keys run game-1..game-3399, but getDate() yields 0..3398
+    game = gameData["game-" + str(date or len(gameData))]
     logging.info("game retrieved")
     logging.info(game)
     return {"date": date,
