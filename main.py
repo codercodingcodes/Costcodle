@@ -24,6 +24,9 @@ DB_GUESS_NAME = "public.guesses"
 DB_WEBHOOK_NAME = "public.interaction"
 DB_GUESS_COLUMN = '("user_id","high","low","date","guess_cnt","avatar","username","game_completed")'
 DB_WEBHOOK_COLUMN = '("user_id","interaction_id","session_id")'
+DB_GAMES_NAME = "public.games"
+# rows in public.games, ids run 1..GAME_COUNT
+GAME_COUNT = 3399
 
 clientID = os.environ.get("CLIENT_ID", "")
 clientSec = os.environ.get("CLIENT_SEC", "")
@@ -33,10 +36,10 @@ redirectURI = os.environ.get("REDIRECT_URI", "")
 DB_URL = os.environ.get("DB_URL", "")
 JWT_SECRET = os.environ.get("JWT_SECRET", "")
 JWT_EXPIRY_SECONDS = int(os.environ.get("JWT_EXPIRY_SECONDS", "86400"))
+# game images are served by the frontend, embeds need an absolute URL
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://costcodle-frontend.vercel.app")
 
 logging.basicConfig(level=logging.DEBUG)
-with open('games.json', 'r') as file:
-    gameData = json.load(file)
 
 
 def get_connection():
@@ -59,7 +62,7 @@ def get_connection():
 
 
 def getDate():
-    return int((((time.time()) // 86400)+100) % 3399)
+    return int((((time.time()) // 86400)+100) % GAME_COUNT)
 
 
 def getTime():
@@ -372,12 +375,13 @@ def guessDB():
                             "label": "Play"
                             }]
                       }]
+        image = get_game_payload()["game"]["image"]
         embeds = [{"type": "image",
                    "image": {
-                       "url": get_game_payload()["game"]["image"],
+                       "url": FRONTEND_URL + image,
                        "height": 100,
                        "width": 100
-                   }}]
+                   }}] if image else []
         intToken = getInterID(userID)
         if len(intToken)>0:
             url = "https://discord.com/api/v10/webhooks/{appID}/{intToken}".format(appID=clientID,
@@ -480,8 +484,19 @@ def channelDB():
 def get_game_payload():
     date = getDate()
     time = getTime()
-    # games.json keys run game-1..game-3399, but getDate() yields 0..3398
-    game = gameData["game-" + str(date or len(gameData))]
+    # game ids run 1..GAME_COUNT, but getDate() yields 0..GAME_COUNT-1
+    game_id = date or GAME_COUNT
+    conn = get_connection()
+    if not conn:
+        raise Exception("DB connection failed")
+    curr = conn.cursor()
+    curr.execute('''
+        SELECT name, price, image FROM {name} WHERE id = %s
+    '''.format(name=DB_GAMES_NAME), (game_id,))
+    name, price, image = curr.fetchone()
+    curr.close()
+    conn.close()
+    game = {"name": name, "price": price, "image": image}
     logging.info("game retrieved")
     logging.info(game)
     return {"date": date,
